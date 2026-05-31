@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>焊接熔池凝固组织模拟系统</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="microstructure-framework.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>焊接熔池凝固组织模拟系统</h1>
+      <p class="subtitle">Welding Pool Solidification Microstructure Simulation & Optimization</p>
+    </header>
+
+    <div class="main-content">
+      <div class="control-panel">
+        <div class="control-section">
+          <h2>工艺参数</h2>
+          <div class="control-group">
+            <label for="weldingSpeed">焊接速度: <span id="speedValue">5.0</span> mm/s</label>
+            <input type="range" id="weldingSpeed" min="1" max="20" step="0.5" value="5">
+          </div>
+          <div class="control-group">
+            <label for="heatInput">热输入: <span id="heatValue">8.0</span> kJ/cm</label>
+            <input type="range" id="heatInput" min="2" max="25" step="0.5" value="8">
+          </div>
+          <div class="control-group">
+            <label for="temperature">预热温度: <span id="tempValue">25</span> °C</label>
+            <input type="range" id="temperature" min="0" max="500" step="10" value="25">
+          </div>
+        </div>
+
+        <div class="control-section">
+          <h2>模拟控制</h2>
+          <div class="button-group">
+            <button id="startBtn" class="btn btn-primary">开始模拟</button>
+            <button id="pauseBtn" class="btn btn-secondary" disabled>暂停</button>
+            <button id="resetBtn" class="btn btn-danger">重置</button>
+          </div>
+          <div class="control-group">
+            <label for="speedControl">动画速度: <span id="animSpeedValue">1.0</span>x</label>
+            <input type="range" id="speedControl" min="0.1" max="5" step="0.1" value="1">
+          </div>
+        </div>
+
+        <div class="control-section">
+          <h2>实时监控</h2>
+          <div class="info-panel">
+            <div class="info-item">
+              <span class="info-label">时间步:</span>
+              <span id="infoTimeStep" class="info-value">0</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">焊枪位置:</span>
+              <span id="infoTorchPos" class="info-value">0.0 mm</span>
+            </div>
+            <div class="info-item highlight">
+              <span class="info-label">平均晶粒尺寸:</span>
+              <span id="infoAvgGrainSize" class="info-value">0.00 μm</span>
+            </div>
+            <div class="info-item highlight">
+              <span class="info-label">柱状晶比例:</span>
+              <span id="infoColumnarRatio" class="info-value">0%</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">晶粒数量:</span>
+              <span id="infoGrainCount" class="info-value">0</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">平均冷却速率:</span>
+              <span id="infoCoolingRate" class="info-value">0.0 °C/s</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">形核事件:</span>
+              <span id="infoNucleationCount" class="info-value">0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-section">
+          <h2>显示选项</h2>
+          <div class="checkbox-group">
+            <label><input type="checkbox" id="showPool" checked> 熔池轮廓</label>
+            <label><input type="checkbox" id="showHAZ" checked> 热影响区</label>
+            <label><input type="checkbox" id="showGrains" checked> 晶粒形貌</label>
+            <label><input type="checkbox" id="showFront" checked> 凝固前沿</label>
+            <label><input type="checkbox" id="showOrientation" checked> 取向着色</label>
+            <label><input type="checkbox" id="showGrainBoundaries"> 晶界显示</label>
+          </div>
+        </div>
+
+        <div class="control-section">
+          <h2>视图切换</h2>
+          <div class="button-group">
+            <button id="viewModeGrain" class="btn btn-small btn-active">晶粒尺寸</button>
+            <button id="viewModeOrientation" class="btn btn-small">取向分布</button>
+            <button id="viewModeCooling" class="btn btn-small">冷却速率</button>
+          </div>
+        </div>
+
+        <div class="control-section">
+          <h2>数据管理</h2>
+          <div class="button-group">
+            <button id="saveParamsBtn" class="btn btn-success">保存参数</button>
+            <button id="saveSnapshotBtn" class="btn btn-success">保存快照</button>
+            <button id="analyzeBtn" class="btn btn-info">分析预测</button>
+            <button id="loadHistoryBtn" class="btn btn-info">加载历史</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="canvas-container">
+        <div class="canvas-tabs">
+          <button class="tab-btn active" data-tab="main">熔池与晶粒</button>
+          <button class="tab-btn" data-tab="orientation">取向分布图</button>
+          <button class="tab-btn" data-tab="animation">凝固过程动画</button>
+          <button class="tab-btn" data-tab="optimization">工艺优化</button>
+        </div>
+
+        <div class="tab-content active" id="tab-main">
+          <div class="canvas-wrapper">
+            <canvas id="mainCanvas" width="800" height="500"></canvas>
+            <div class="canvas-overlay">
+              <div class="legend">
+                <h3>温度图例</h3>
+                <div class="legend-item">
+                  <div class="legend-color" style="background: #ff6b35;"></div>
+                  <span>熔池 (T > Tm)</span>
+                </div>
+                <div class="legend-item">
+                  <div class="legend-color" style="background: #ffd93d;"></div>
+                  <span>热影响区 (Ac1 < T < Tm)</span>
+                </div>
+                <div class="legend-item">
+                  <div class="legend-color" style="background: #6bcb77;"></div>
+                  <span>凝固区 (T < Ts)</span>
+                </div>
+                <div class="legend-item">
+                  <div class="legend-color" style="background: #4d96ff;"></div>
+                  <span>母材</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="canvas-wrapper">
+            <canvas id="grainCanvas" width="800" height="250"></canvas>
+            <div class="canvas-title" id="grainCanvasTitle">晶粒尺寸分布图</div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-orientation">
+          <div class="canvas-wrapper large">
+            <canvas id="orientationCanvas" width="800" height="600"></canvas>
+            <div class="canvas-title">晶粒取向极图</div>
+            <div class="orientation-legend">
+              <div class="orientation-scale"></div>
+              <div class="orientation-labels">
+                <span>-180°</span>
+                <span>-90°</span>
+                <span>0°</span>
+                <span>90°</span>
+                <span>180°</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-animation">
+          <div class="animation-panel">
+            <h3>凝固过程动画回放</h3>
+            <div class="canvas-wrapper">
+              <canvas id="animationCanvas" width="800" height="500"></canvas>
+            </div>
+            <div class="animation-controls">
+              <button id="playAnimation" class="btn btn-primary">▶ 播放</button>
+              <button id="pauseAnimation" class="btn btn-secondary" disabled>⏸ 暂停</button>
+              <button id="resetAnimation" class="btn btn-secondary">⏮ 重置</button>
+              <div class="slider-control">
+                <label>速度:</label>
+                <input type="range" id="animPlaybackSpeed" min="0.5" max="3" step="0.1" value="1">
+                <span id="animPlaybackSpeedValue">1.0x</span>
+              </div>
+            </div>
+            <div class="animation-info">
+              <span id="animFrameInfo">帧数: 0 / 0</span>
+              <span id="animTimeInfo">模拟时间: 0.00 s</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-optimization">
+          <div class="optimization-panel">
+            <div class="score-card">
+              <h3>工艺综合评分</h3>
+              <div class="score-display">
+                <div class="score-value" id="totalScore">--</div>
+                <div class="score-max">/ 100</div>
+              </div>
+              <div class="grade-display" id="gradeDisplay">
+                <span class="grade-letter" id="gradeLetter">-</span>
+                <span class="grade-label" id="gradeLabel">等待分析</span>
+              </div>
+            </div>
+
+            <div class="predictions-card">
+              <h3>力学性能预测</h3>
+              <div class="prediction-grid">
+                <div class="prediction-item">
+                  <span class="prediction-label">屈服强度</span>
+                  <span class="prediction-value" id="predYieldStrength">--</span>
+                  <span class="prediction-unit">MPa</span>
+                </div>
+                <div class="prediction-item">
+                  <span class="prediction-label">抗拉强度</span>
+                  <span class="prediction-value" id="predUTS">--</span>
+                  <span class="prediction-unit">MPa</span>
+                </div>
+                <div class="prediction-item">
+                  <span class="prediction-label">延伸率</span>
+                  <span class="prediction-value" id="predElongation">--</span>
+                  <span class="prediction-unit">%</span>
+                </div>
+                <div class="prediction-item">
+                  <span class="prediction-label">硬度</span>
+                  <span class="prediction-value" id="predHardness">--</span>
+                  <span class="prediction-unit">HV</span>
+                </div>
+                <div class="prediction-item">
+                  <span class="prediction-label">冲击能量</span>
+                  <span class="prediction-value" id="predImpact">--</span>
+                  <span class="prediction-unit">J</span>
+                </div>
+                <div class="prediction-item">
+                  <span class="prediction-label">疲劳极限</span>
+                  <span class="prediction-value" id="predFatigue">--</span>
+                  <span class="prediction-unit">MPa</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="scores-card">
+              <h3>分项评分</h3>
+              <div class="score-bars">
+                <div class="score-bar-item">
+                  <span class="score-bar-label">屈服强度</span>
+                  <div class="score-bar-container">
+                    <div class="score-bar" id="scoreBarYield" style="width: 0%"></div>
+                  </div>
+                  <span class="score-bar-value" id="scoreValueYield">--</span>
+                </div>
+                <div class="score-bar-item">
+                  <span class="score-bar-label">延伸率</span>
+                  <div class="score-bar-container">
+                    <div class="score-bar" id="scoreBarElongation" style="width: 0%"></div>
+                  </div>
+                  <span class="score-bar-value" id="scoreValueElongation">--</span>
+                </div>
+                <div class="score-bar-item">
+                  <span class="score-bar-label">晶粒尺寸</span>
+                  <div class="score-bar-container">
+                    <div class="score-bar" id="scoreBarGrain" style="width: 0%"></div>
+                  </div>
+                  <span class="score-bar-value" id="scoreValueGrain">--</span>
+                </div>
+                <div class="score-bar-item">
+                  <span class="score-bar-label">柱状晶比例</span>
+                  <div class="score-bar-container">
+                    <div class="score-bar" id="scoreBarColumnar" style="width: 0%"></div>
+                  </div>
+                  <span class="score-bar-value" id="scoreValueColumnar">--</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="suggestions-card">
+              <h3>优化建议</h3>
+              <div id="suggestionsList" class="suggestions-list">
+                <div class="suggestion-empty">点击"分析预测"按钮获取优化建议</div>
+              </div>
+            </div>
+
+            <div class="recommendation-card">
+              <h3>推荐参数</h3>
+              <div class="recommendation-content" id="recommendationContent">
+                <p>点击"分析预测"按钮获取参数推荐</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="history-panel" id="historyPanel">
+          <h3>历史记录</h3>
+          <div id="historyList" class="history-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <span id="status" class="status">就绪 - 调节参数后点击"开始模拟"</span>
+    </div>
+  </div>
+
+  <script src="simulation.js"></script>
+</body>
+</html>
